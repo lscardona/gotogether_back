@@ -35,13 +35,13 @@ public class Users implements Serializable {
     
     private String name;
     
-    private String cedula;
+    private String identificationNumber;
     
-    private String correo;
+    private String email;
     
-    private String uuid;
+    private String facialId;
     
-    private String carNumber;
+    private String licensePlate;
     
     private String carModel;
     
@@ -54,8 +54,9 @@ public class Users implements Serializable {
  
     @ManyToOne(fetch = FetchType.EAGER, cascade = { CascadeType.MERGE, CascadeType.REMOVE, 
         CascadeType.REFRESH, CascadeType.DETACH})
-    @JoinColumn(name = "type")
+    @JoinColumn(name = "type_id")
     private UserType type;
     
     public Users(){}
+    
 }

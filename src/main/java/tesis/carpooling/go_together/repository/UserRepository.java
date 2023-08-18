@@ -19,10 +19,10 @@ import tesis.carpooling.go_together.entity.Users;
 @Repository
 public interface UserRepository extends JpaRepository<Users, UUID> {
     
-    @Query("SELECT p FROM Users p WHERE p.uuid=:userId")
+    @Query("SELECT p FROM Users p WHERE p.facialId=:userId")
     Users findUserByUuid(@Param("userId") String userId);
     
-    @Query("SELECT COUNT(d) FROM Users d WHERE d.uuid = :userId")
+    @Query("SELECT COUNT(d) FROM Users d WHERE d.facialId = :userId")
     public int countUserByUuid(@Param("userId") String userId);
     
     @Query("SELECT p FROM Users p WHERE p.id=:userId")

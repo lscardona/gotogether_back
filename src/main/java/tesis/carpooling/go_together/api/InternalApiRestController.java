@@ -22,10 +22,12 @@ import tesis.carpooling.go_together.entity.Point;
 import tesis.carpooling.go_together.entity.Users;
 import tesis.carpooling.go_together.entity.Routes;
 import tesis.carpooling.go_together.entity.Session;
+import tesis.carpooling.go_together.entity.UserType;
 import tesis.carpooling.go_together.repository.AdminRepository;
 import tesis.carpooling.go_together.repository.RoutesRepository;
 import tesis.carpooling.go_together.repository.SessionRepository;
 import tesis.carpooling.go_together.repository.UserRepository;
+import tesis.carpooling.go_together.repository.UserTypeRepository;
 
 /**
  *
@@ -45,6 +47,9 @@ public class InternalApiRestController {
    
    @Autowired
    private AdminRepository adminRepo;
+   
+   @Autowired
+   private UserTypeRepository typeRepo;
    
    @PostMapping("/create-session/{userId}")
    public Session createSession(@PathVariable("userId") String userId) {
@@ -94,6 +99,8 @@ public class InternalApiRestController {
    @PostMapping("/api/signup")
    public Users createUser(@RequestBody Users user) {
        try {
+           UserType type = typeRepo.findById(user.getType().getId()).get();
+           user.setType(type);
            userRepo.save(user);
            return user;
        } catch(Exception ex) {
