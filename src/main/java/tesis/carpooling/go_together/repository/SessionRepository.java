@@ -20,4 +20,7 @@ public interface SessionRepository extends JpaRepository<Session, UUID> {
     
     @Query("SELECT s FROM Session s WHERE s.id = :sessionId")
     public Session getSession(@Param("sessionId") UUID sessionId);
+    
+    @Query("SELECT COUNT(s) FROM Session s WHERE s.userId = :userId")
+    public long getSessionByUser(@Param("userId") UUID userId);
 }

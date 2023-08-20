@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,65 +52,92 @@ public class InternalApiRestController {
    @Autowired
    private UserTypeRepository typeRepo;
    
-   @PostMapping("/create-session/{userId}")
-   public Session createSession(@PathVariable("userId") String userId) {
-       try {
-           long findUser = userRepo.countUserByUuid(userId);
-            if(findUser != 0) {
-                Users user = userRepo.findUserByUuid(userId);
-                if(user.isEnabled()) {
-                    Session session = new Session(UUID.fromString("123e4567-e89b-12d3-a456-426655440000"), 
-                            user.getId(),  user.getType().getType());
-                    sessionRepo.save(session);
-                    return session;
-                }
-                else
-                    throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "User disabled");
-            }
+    /**
+     * Create a session for passengers and drivers users
+     * @param userId facial id
+     * @return the session opened
+     */
+    @PostMapping("/create-session/{userId}")
+    public Session createSession(@PathVariable("userId") String userId) {
+        long findUser = userRepo.countUserByUuid(userId);
+        if( findUser == 0)
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, String.format("User not found"));
-       } catch(Exception ex) {
-           throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
-                   String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
-       } 
-   }
-   
-   @PostMapping("/create-session/admin/{userName}/{password}")
-   public Session createAdminSession(@PathVariable("userName") String userName,
-            @PathVariable("password") String password) {
-       try {
-           Administrator admin = adminRepo.findAdmin(userName, password);
-           Session session = new Session(UUID.fromString("123e4567-e89b-12d3-a456-426655440000"), 
-                   admin.getId(),  admin.getUserName(), 1);
+        Users user = userRepo.findUserByUuid(userId);
+        long findSession = sessionRepo.getSessionByUser(user.getId());
+        if(findSession != 0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A session already exists for this user");
+        if(!user.isEnabled()) 
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "User disabled");
+        try {
+            Session session = new Session(UUID.fromString("123e4567-e89b-12d3-a456-426655440000"), 
+                    user.getId(),  user.getType().getType());
             sessionRepo.save(session);
             return session;
-       } catch(Exception ex ) {
-           throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid user");
-       }
-   }
+        } catch(Exception ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        } 
+    }
    
-   @DeleteMapping("/delete-session/{sessionId}")
-   public void closeSession(@PathVariable("sessionId") UUID sessionId) {
-       try {
-           sessionRepo.deleteById(sessionId);
-       } catch(Exception ex) {
-           throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
-       }
-   }
-   
-   @PostMapping("/api/signup")
-   public Users createUser(@RequestBody Users user) {
-       try {
-           UserType type = typeRepo.findById(user.getType().getId()).get();
-           user.setType(type);
-           userRepo.save(user);
-           return user;
-       } catch(Exception ex) {
-             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                     String.format("Access denied", ex.getMessage()));
+    /**
+     * Create a session with admin user
+     * @param userName name admin user
+     * @param password password admin user
+     * @return the session opened
+     */
+    @PostMapping("/create-session/admin/{userName}/{password}")
+    public Session createAdminSession(@PathVariable("userName") String userName,
+             @PathVariable("password") String password) {
+        try {
+            Administrator admin = adminRepo.findAdmin(userName, password);
+            Session session = new Session(UUID.fromString("123e4567-e89b-12d3-a456-426655440000"), 
+                    admin.getId(),  admin.getUserName(), 1);
+            sessionRepo.save(session);
+            return session;
+        } catch(Exception ex ) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invalid user");
         }
-   }
+    }
+   
+    /**
+     * Close a session of users
+     * @param sessionId id of session
+     */
+    @DeleteMapping("/delete-session/{sessionId}")
+    public void closeSession(@PathVariable("sessionId") UUID sessionId) {
+        try {
+            sessionRepo.deleteById(sessionId);
+        } catch(Exception ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
+        }
+    }
+   
+    /**
+     * Create an user in database
+     * @param user user created
+     * @return user
+     */
+    @PostMapping("/api/signup")
+    public Users createUser(@RequestBody Users user) {
+        try {
+            UserType type = typeRepo.findById(user.getType().getId()).get();
+            user.setType(type);
+            user.setEnabled(true);
+            userRepo.save(user);
+            return user;
+        } catch(Exception ex) {
+              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                      String.format("Access denied", ex.getMessage()));
+         }
+    }
    
    // <editor-fold desc="Admin" defaultstate="collapsed">
+
+    /**
+     * gets registered drivers
+     * @param sessionId admin session id
+     * @return a list with all drivers
+     */
     @GetMapping("/drivers/{sessionId}")
     public List<Users> getDrivers(@PathVariable("sessionId") UUID sessionId) {
         try {
@@ -124,6 +152,11 @@ public class InternalApiRestController {
         }
     }
    
+    /**
+     * gets registered passengers
+     * @param sessionId admin session id
+     * @return a list with the passengers
+     */
     @GetMapping("/passengers/{sessionId}")
     public List<Users> getPassengers(@PathVariable("sessionId") UUID sessionId) {
         try {
@@ -138,6 +171,12 @@ public class InternalApiRestController {
         }
     }
     
+    /**
+     * Enable or disable users
+     * @param enabled flag that enabled or disabled users
+     * @param userId user to change the state
+     * @param sessionId admin session id
+     */
     @PutMapping("/change-state/{sessionId}/{userId}/{enabled}")
     public void changeUserState(@PathVariable("enabled") boolean enabled, 
             @PathVariable("userId") UUID userId, @PathVariable("sessionId") UUID sessionId) {
@@ -160,7 +199,14 @@ public class InternalApiRestController {
    // </editor-fold>
    
    // <editor-fold desc="Users Driver" defaultstate="collapsed">
-   
+
+    /**
+     * Create a route
+     * @param sessionId session user id
+     * @param point List of points along the route 
+     * @param startTime travel start time
+     * @return the route
+     */
     @PostMapping("/route/{sessionId}")
     public Routes createRoute(@PathVariable("sessionId") UUID sessionId, @RequestBody List<Point> point, 
             @PathVariable("start-travel") long startTime) {
@@ -185,7 +231,6 @@ public class InternalApiRestController {
             @PathVariable("routeId") UUID routeId) {
         if(!validateDriverCall(sessionId)) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
-        
         try {
             return routeRepo.getRoute(routeId);
         } catch(Exception ex) {
@@ -194,8 +239,23 @@ public class InternalApiRestController {
         }
     }
     
+    /**
+     * Delete a route
+     * @param sessionId user id
+     * @param routeId route id
+     */
+    @DeleteMapping("route/{sessionId}/{routeId}")
+    public void deleteRoute(@PathVariable("sessionId") UUID sessionId, @PathVariable("routeId") UUID routeId) {
+        if(!validateDriverCall(sessionId)) 
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        try {
+           routeRepo.deleteById(routeId);
+        } catch(Exception ex) {
+             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        }
+    }
    // </editor-fold>
-   
    
   // <editor-fold desc="validate sessions" defaultstate="collapsed">
     public boolean validateAdminCall(UUID sessionId) {
