@@ -28,9 +28,9 @@ public interface UserRepository extends JpaRepository<Users, UUID> {
     @Query("SELECT p FROM Users p WHERE p.id=:userId")
     Users findUserById(@Param("userId") UUID userId);
     
-    @Query("SELECT d FROM Users d WHERE d.type.id=3")
+    @Query("SELECT d FROM Users d WHERE d.type.id=2")
     List<Users> getPassenger();
     
-    @Query("SELECT d FROM Users d WHERE d.type.id=2")
+    @Query("SELECT d FROM Users d WHERE d.type.id=3")
     List<Users> getDrivers();
 }

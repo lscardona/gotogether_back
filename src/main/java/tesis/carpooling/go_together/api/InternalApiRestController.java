@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -69,8 +68,7 @@ public class InternalApiRestController {
         if(!user.isEnabled()) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "User disabled");
         try {
-            Session session = new Session(UUID.fromString("123e4567-e89b-12d3-a456-426655440000"), 
-                    user.getId(),  user.getType().getType());
+            Session session = new Session(user.getId(),  user.getType().getType());
             sessionRepo.save(session);
             return session;
         } catch(Exception ex) {
@@ -88,10 +86,12 @@ public class InternalApiRestController {
     @PostMapping("/create-session/admin/{userName}/{password}")
     public Session createAdminSession(@PathVariable("userName") String userName,
              @PathVariable("password") String password) {
+        Administrator admin = adminRepo.findAdmin(userName, password);
+        long findSession = sessionRepo.getSessionByUser(admin.getId());
+        if(findSession != 0)
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Session already exist");
         try {
-            Administrator admin = adminRepo.findAdmin(userName, password);
-            Session session = new Session(UUID.fromString("123e4567-e89b-12d3-a456-426655440000"), 
-                    admin.getId(),  admin.getUserName(), 1);
+            Session session = new Session(admin.getId(),  admin.getUserName());
             sessionRepo.save(session);
             return session;
         } catch(Exception ex ) {
@@ -180,16 +180,17 @@ public class InternalApiRestController {
     @PutMapping("/change-state/{sessionId}/{userId}/{enabled}")
     public void changeUserState(@PathVariable("enabled") boolean enabled, 
             @PathVariable("userId") UUID userId, @PathVariable("sessionId") UUID sessionId) {
-        try {
-            if(validateAdminCall(sessionId)) {
+        if(!validateAdminCall(sessionId)) 
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Access denied");
+        else {
+            try {
                 Users driver = userRepo.findUserById(userId);
                 driver.setEnabled(enabled);
                 userRepo.save(driver);
-            } else
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Access denied");
-        } catch(Exception ex) {
-             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+            } catch(Exception ex) {
+                 throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                         String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+            }
         }
     }
    // </editor-fold>
@@ -257,7 +258,7 @@ public class InternalApiRestController {
     }
    // </editor-fold>
    
-  // <editor-fold desc="validate sessions" defaultstate="collapsed">
+    // <editor-fold desc="validate sessions" defaultstate="collapsed">
     public boolean validateAdminCall(UUID sessionId) {
         try {
             Session session = sessionRepo.getSession(sessionId);

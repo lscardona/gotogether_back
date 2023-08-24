@@ -36,8 +36,7 @@ public class Session implements Serializable {
     
     public Session() {}
     
-    public Session(UUID id, UUID userId, String userType) {
-        this.id=id;
+    public Session(UUID userId, String userType) {
         this.userId=userId;
         this.userType=userType;
     }
