@@ -208,7 +208,7 @@ public class InternalApiRestController {
      * @param startTime travel start time
      * @return the route
      */
-    @PostMapping("/route/{sessionId}")
+    @PostMapping("/route/{sessionId}/{start-travel}")
     public Routes createRoute(@PathVariable("sessionId") UUID sessionId, @RequestBody List<Point> point, 
             @PathVariable("start-travel") long startTime) {
         

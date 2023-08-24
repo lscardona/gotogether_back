@@ -13,6 +13,7 @@ import java.io.Serializable;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
@@ -24,6 +25,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Getter
 @Setter
+@NoArgsConstructor
 public class Point implements Serializable {
     
     @Id
@@ -31,12 +33,12 @@ public class Point implements Serializable {
     @SequenceGenerator(name = "SequencePoint", sequenceName = "POINT_SEQ")
     private long id;
     
-    private long latitude;
+    private double lat;
     
-    private long longitude;
+    private double lng;
     
-    public Point(long latitude, long longitude) {
-        this.latitude=latitude;
-        this.longitude=longitude;
+    public Point(double latitude, double longitude) {
+        this.lat=latitude;
+        this.lng=longitude;
     }
 }
