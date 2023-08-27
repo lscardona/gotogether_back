@@ -21,11 +21,15 @@ import tesis.carpooling.go_together.entity.Administrator;
 import tesis.carpooling.go_together.entity.Point;
 import tesis.carpooling.go_together.entity.Users;
 import tesis.carpooling.go_together.entity.Routes;
+import tesis.carpooling.go_together.entity.Score;
 import tesis.carpooling.go_together.entity.Session;
+import tesis.carpooling.go_together.entity.Travel;
 import tesis.carpooling.go_together.entity.UserType;
 import tesis.carpooling.go_together.repository.AdminRepository;
 import tesis.carpooling.go_together.repository.RoutesRepository;
+import tesis.carpooling.go_together.repository.ScoreRepository;
 import tesis.carpooling.go_together.repository.SessionRepository;
+import tesis.carpooling.go_together.repository.TravelRepository;
 import tesis.carpooling.go_together.repository.UserRepository;
 import tesis.carpooling.go_together.repository.UserTypeRepository;
 
@@ -50,6 +54,14 @@ public class InternalApiRestController {
    
    @Autowired
    private UserTypeRepository typeRepo;
+   
+   @Autowired
+   private TravelRepository travelRepo;
+   
+   @Autowired
+   private ScoreRepository scoreRepo;
+   
+   // <editor-fold desc="Session" defaultstate="collapsed">
    
     /**
      * Create a session for passengers and drivers users
@@ -130,6 +142,8 @@ public class InternalApiRestController {
                       String.format("Access denied", ex.getMessage()));
          }
     }
+    
+    // </editor-fold>
    
    // <editor-fold desc="Admin" defaultstate="collapsed">
 
@@ -197,6 +211,61 @@ public class InternalApiRestController {
    
    // <editor-fold desc="Passenger" defaultstate="collapsed">
    
+    /**
+     * Get information about driver
+     * @param sessionId id of session 
+     * @return the driver user
+     */
+    @GetMapping("/passenger")
+    public Users getPassengerUser(@PathVariable("sessionId") UUID sessionId) {
+        if(!validatePassengerCall(sessionId)) 
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Session session = sessionRepo.findById(sessionId).get();
+        if(session == null) 
+             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Users user = userRepo.findById(session.getUserId()).get();
+        if(user == null)
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        try {
+            Users userInfo = new Users();
+            userInfo.setName(user.getName());
+            userInfo.setIdentificationNumber(user.getIdentificationNumber());
+            userInfo.setEmail(user.getEmail());
+            return userInfo;
+        } catch(Exception ex) {
+             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        }
+    }
+    
+    /**
+     * Create a travel
+     * @param sessionId session user id
+     * @param point List of points along the route 
+     * @param startTime travel start time
+     * @return the route
+     */
+    @PostMapping("/travel/{sessionId}/{start-travel}")
+    public Travel createTravel(@PathVariable("sessionId") UUID sessionId, @RequestBody List<Point> point, 
+            @PathVariable("start-travel") long startTime) {
+        
+        if(!validatePassengerCall(sessionId))
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        if(point.size() != 2)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You can choose only two points");
+        
+        try{
+            Session session = sessionRepo.getSession(sessionId);
+            Users passenger = userRepo.findUserById(session.getUserId());
+            Travel newRoute = new Travel(true, passenger, Calendar.getInstance().getTimeInMillis(), point);
+            travelRepo.save(newRoute);
+            return newRoute;
+        } catch(Exception ex) {
+             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        }
+    }
+    
    // </editor-fold>
    
    // <editor-fold desc="Users Driver" defaultstate="collapsed">
@@ -250,15 +319,74 @@ public class InternalApiRestController {
         if(!validateDriverCall(sessionId)) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         try {
-           routeRepo.deleteById(routeId);
+           routeRepo.deleteRoute(routeId);
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                      String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
         }
     }
+    
+    /**
+     * Get information about driver
+     * @param sessionId id of session 
+     * @return the driver user
+     */
+    @GetMapping("/driver")
+    public Users getDriverUser(@PathVariable("sessionId") UUID sessionId) {
+        if(!validateDriverCall(sessionId)) 
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Session session = sessionRepo.findById(sessionId).get();
+        if(session == null) 
+             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Users user = userRepo.findById(session.getUserId()).get();
+        if(user == null)
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        try {
+            Users userInfo = new Users();
+            userInfo.setName(user.getName());
+            userInfo.setIdentificationNumber(user.getIdentificationNumber());
+            userInfo.setEmail(user.getEmail());
+            userInfo.setLicensePlate(user.getLicensePlate());
+            userInfo.setCarModel(user.getCarModel());
+            userInfo.setQualifying(user.getQualifying());
+            return userInfo;
+        } catch(Exception ex) {
+             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        }
+    }
+    
+    @PutMapping("/driver/qualifying")
+    public void driverQualifying(@PathVariable("sessionId") UUID sessionId, @PathVariable("qualifying") long number) {
+        if(!validatePassengerCall(sessionId))
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Session session = sessionRepo.findById(sessionId).get();
+        if(session == null) 
+             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Users user = userRepo.findById(session.getUserId()).get();
+        if(user == null)
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        try {
+            Score newScore = new Score(user.getId(), number);
+            scoreRepo.save(newScore);
+            long numberScores = scoreRepo.countScoresByUser(user.getId());
+            List<Score> scores = scoreRepo.getScoreByUser(user.getId());
+            float count = 0;
+            for(Score s : scores) {
+                count += s.getScore();
+            }
+            float finalQualifying = count/numberScores;
+            user.setQualifying(finalQualifying);
+            userRepo.save(user);
+        } catch(Exception ex) {
+             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        }
+    }
+    
    // </editor-fold>
    
-    // <editor-fold desc="validate sessions" defaultstate="collapsed">
+   // <editor-fold desc="validate sessions" defaultstate="collapsed">
     public boolean validateAdminCall(UUID sessionId) {
         try {
             Session session = sessionRepo.getSession(sessionId);

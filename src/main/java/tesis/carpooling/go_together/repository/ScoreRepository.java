@@ -4,27 +4,24 @@
  */
 package tesis.carpooling.go_together.repository;
 
-import jakarta.transaction.Transactional;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import tesis.carpooling.go_together.entity.Routes;
+import tesis.carpooling.go_together.entity.Score;
 
 /**
  *
  * @author Usuario
  */
 @Repository
-public interface RoutesRepository extends JpaRepository<Routes, UUID> {
+public interface ScoreRepository extends JpaRepository<Score, UUID> {
     
-    @Query("SELECT r FROM Routes r WHERE r.id= :routeId")
-    Routes getRoute(@Param("routeId") UUID routeId);
+    @Query("SELECT COUNT(s) FROM Score s WHERE s.userId= :userId")
+    long countScoresByUser(@Param("userId") UUID userId);
     
-    @Modifying
-    @Transactional
-    @Query("DELETE FROM Routes r WHERE r.id = :routeId")
-    void deleteRoute(@Param("routeId") UUID routeId);
+    @Query("SELECT s FROM Score s WHERE s.userId= :userId")
+    List<Score> getScoreByUser(@Param("userId") UUID userId);
 }

@@ -69,4 +69,9 @@ public class Routes implements Serializable{
         points.add(point);
         return points;
     }
+    
+    public List<Users> addPassenger(Users passenger) {
+        this.passengers.add(passenger);
+        return passengers;
+    }
 }
