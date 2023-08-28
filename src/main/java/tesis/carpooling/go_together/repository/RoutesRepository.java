@@ -5,6 +5,7 @@
 package tesis.carpooling.go_together.repository;
 
 import jakarta.transaction.Transactional;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -27,4 +28,7 @@ public interface RoutesRepository extends JpaRepository<Routes, UUID> {
     @Transactional
     @Query("DELETE FROM Routes r WHERE r.id = :routeId")
     void deleteRoute(@Param("routeId") UUID routeId);
+//    
+//    @Query("SELECT r FROM Routes r WHERE to_timestamp(r.startTime) >= to_timestamp(:myTime / 1000) - 600")
+//    List<Routes> findRoutesByTime(@Param("myTime") long myTime);
 }

@@ -4,8 +4,12 @@
  */
 package tesis.carpooling.go_together.repository;
 
+import jakarta.transaction.Transactional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tesis.carpooling.go_together.entity.Travel;
 
@@ -16,4 +20,8 @@ import tesis.carpooling.go_together.entity.Travel;
 @Repository
 public interface TravelRepository extends JpaRepository<Travel, UUID> {
     
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM Travel r WHERE r.id = :travelId")
+    void deleteTravel(@Param("travelId") UUID travelId);
 }

@@ -39,7 +39,6 @@ public class Travel {
     
     @OneToMany(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REMOVE, 
         CascadeType.REFRESH, CascadeType.DETACH} )
-    @JoinColumn(name = "points_id")
     private List<Point> points;
     
     @OneToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REMOVE, 

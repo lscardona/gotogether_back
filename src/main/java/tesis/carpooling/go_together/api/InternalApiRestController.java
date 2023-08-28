@@ -4,6 +4,7 @@
  */
 package tesis.carpooling.go_together.api;
 
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
@@ -26,6 +27,7 @@ import tesis.carpooling.go_together.entity.Session;
 import tesis.carpooling.go_together.entity.Travel;
 import tesis.carpooling.go_together.entity.UserType;
 import tesis.carpooling.go_together.repository.AdminRepository;
+import tesis.carpooling.go_together.repository.PointRepository;
 import tesis.carpooling.go_together.repository.RoutesRepository;
 import tesis.carpooling.go_together.repository.ScoreRepository;
 import tesis.carpooling.go_together.repository.SessionRepository;
@@ -60,6 +62,9 @@ public class InternalApiRestController {
    
    @Autowired
    private ScoreRepository scoreRepo;
+   
+   @Autowired
+   private PointRepository pointRepo;
    
    // <editor-fold desc="Session" defaultstate="collapsed">
    
@@ -135,6 +140,7 @@ public class InternalApiRestController {
             UserType type = typeRepo.findById(user.getType().getId()).get();
             user.setType(type);
             user.setEnabled(true);
+            user.setQualifying(5);
             userRepo.save(user);
             return user;
         } catch(Exception ex) {
@@ -216,7 +222,7 @@ public class InternalApiRestController {
      * @param sessionId id of session 
      * @return the driver user
      */
-    @GetMapping("/passenger")
+    @GetMapping("/passenger/{sessionId}")
     public Users getPassengerUser(@PathVariable("sessionId") UUID sessionId) {
         if(!validatePassengerCall(sessionId)) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
@@ -266,6 +272,34 @@ public class InternalApiRestController {
         }
     }
     
+    @GetMapping("passenger/routes/{sessionId}")
+    public List<Routes> getRoutesByTravel(@PathVariable("sessionId") UUID sessionId, 
+            @PathVariable("routeId") UUID routeId) {
+        if(!validatePassengerCall(sessionId))
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Travel myTravel = travelRepo.findById(routeId).get();
+        List<Routes> allRoutesByTime = routeRepo.findAll();
+        List<Routes> finalRoutes = new ArrayList<>();
+        
+        try {
+           return finalRoutes; 
+        } catch(Exception ex) {
+             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        }
+    }
+    
+    @DeleteMapping("travel/{sessionId}/{routeId}")
+    public void deleteTravel(@PathVariable("sessionId") UUID sessionId, @PathVariable("routeId") UUID routeId) {
+        if(!validatePassengerCall(sessionId)) 
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        try {
+           travelRepo.deleteTravel(routeId);
+        } catch(Exception ex) {
+             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        }
+    }
    // </editor-fold>
    
    // <editor-fold desc="Users Driver" defaultstate="collapsed">
@@ -331,7 +365,7 @@ public class InternalApiRestController {
      * @param sessionId id of session 
      * @return the driver user
      */
-    @GetMapping("/driver")
+    @GetMapping("/driver/{sessionId}")
     public Users getDriverUser(@PathVariable("sessionId") UUID sessionId) {
         if(!validateDriverCall(sessionId)) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
