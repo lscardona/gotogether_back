@@ -1,7 +1,3 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package tesis.carpooling.go_together.api;
 
 import java.util.ArrayList;
@@ -19,7 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import tesis.carpooling.go_together.entity.Administrator;
-import tesis.carpooling.go_together.entity.Point;
+import tesis.carpooling.go_together.entity.DriverPoint;
+import tesis.carpooling.go_together.entity.PassengerPoint;
 import tesis.carpooling.go_together.entity.Users;
 import tesis.carpooling.go_together.entity.Routes;
 import tesis.carpooling.go_together.entity.Score;
@@ -27,13 +24,14 @@ import tesis.carpooling.go_together.entity.Session;
 import tesis.carpooling.go_together.entity.Travel;
 import tesis.carpooling.go_together.entity.UserType;
 import tesis.carpooling.go_together.repository.AdminRepository;
-import tesis.carpooling.go_together.repository.PointRepository;
+import tesis.carpooling.go_together.repository.DriverPointRepository;
 import tesis.carpooling.go_together.repository.RoutesRepository;
 import tesis.carpooling.go_together.repository.ScoreRepository;
 import tesis.carpooling.go_together.repository.SessionRepository;
 import tesis.carpooling.go_together.repository.TravelRepository;
 import tesis.carpooling.go_together.repository.UserRepository;
 import tesis.carpooling.go_together.repository.UserTypeRepository;
+import tesis.carpooling.go_together.repository.PassengerPointRepository;
 
 /**
  *
@@ -64,7 +62,10 @@ public class InternalApiRestController {
    private ScoreRepository scoreRepo;
    
    @Autowired
-   private PointRepository pointRepo;
+   private PassengerPointRepository passengerPointRepo;
+   
+   @Autowired
+   private DriverPointRepository driverPointRepo;
    
    // <editor-fold desc="Session" defaultstate="collapsed">
    
@@ -252,19 +253,23 @@ public class InternalApiRestController {
      * @return the route
      */
     @PostMapping("/travel/{sessionId}/{start-travel}")
-    public Travel createTravel(@PathVariable("sessionId") UUID sessionId, @RequestBody List<Point> point, 
+    public Travel createTravel(@PathVariable("sessionId") UUID sessionId, @RequestBody List<PassengerPoint> point, 
             @PathVariable("start-travel") long startTime) {
         
         if(!validatePassengerCall(sessionId))
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         if(point.size() != 2)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You can choose only two points");
-        
         try{
             Session session = sessionRepo.getSession(sessionId);
             Users passenger = userRepo.findUserById(session.getUserId());
-            Travel newRoute = new Travel(true, passenger, Calendar.getInstance().getTimeInMillis(), point);
-            travelRepo.save(newRoute);
+            Travel newRoute = new Travel(true, passenger, startTime);
+            UUID travelSaved = travelRepo.save(newRoute).getId();
+            point.forEach(p -> {
+                PassengerPoint newPoint = new PassengerPoint(p.getLat(), p.getLng());
+                newPoint.setElementId(travelSaved);
+                passengerPointRepo.save(newPoint);
+            });
             return newRoute;
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -272,16 +277,22 @@ public class InternalApiRestController {
         }
     }
     
-    @GetMapping("passenger/routes/{sessionId}")
+    @GetMapping("/passenger/routes/{sessionId}/{routeId}")
     public List<Routes> getRoutesByTravel(@PathVariable("sessionId") UUID sessionId, 
             @PathVariable("routeId") UUID routeId) {
         if(!validatePassengerCall(sessionId))
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         Travel myTravel = travelRepo.findById(routeId).get();
-        List<Routes> allRoutesByTime = routeRepo.findAll();
+        List<PassengerPoint> myPoints = passengerPointRepo.getPointsByRoute(myTravel.getId());
+        List<Routes> allRoutesByTime = routeRepo.findRoutesByTime(myTravel.getStartTime());
+        allRoutesByTime.forEach(r -> {
+            List<DriverPoint> points = driverPointRepo.getPointsByRoute(r.getId());
+            r.setPoints(points);
+        });
         List<Routes> finalRoutes = new ArrayList<>();
         
         try {
+            finalRoutes = getNearbyRoutes(myPoints.get(0), myPoints.get(myPoints.size()-1), allRoutesByTime);
            return finalRoutes; 
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -294,7 +305,8 @@ public class InternalApiRestController {
         if(!validatePassengerCall(sessionId)) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         try {
-           travelRepo.deleteTravel(routeId);
+            passengerPointRepo.deletePointsByRoute(routeId);
+            travelRepo.deleteTravel(routeId);
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                      String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
@@ -312,7 +324,7 @@ public class InternalApiRestController {
      * @return the route
      */
     @PostMapping("/route/{sessionId}/{start-travel}")
-    public Routes createRoute(@PathVariable("sessionId") UUID sessionId, @RequestBody List<Point> point, 
+    public Routes createRoute(@PathVariable("sessionId") UUID sessionId, @RequestBody List<PassengerPoint> point, 
             @PathVariable("start-travel") long startTime) {
         
         if(!validateDriverCall(sessionId))
@@ -321,8 +333,13 @@ public class InternalApiRestController {
         try{
             Session session = sessionRepo.getSession(sessionId);
             Users driver = userRepo.findUserById(session.getUserId());
-            Routes newRoute = new Routes(true, driver, Calendar.getInstance().getTimeInMillis(), point);
-            routeRepo.save(newRoute);
+            Routes newRoute = new Routes(true, driver, startTime);
+            UUID routeId = routeRepo.save(newRoute).getId();
+            point.forEach(p -> {
+                DriverPoint newPoint = new DriverPoint(p.getLat(), p.getLng());
+                newPoint.setElementId(routeId);
+                driverPointRepo.save(newPoint);
+            });
             return newRoute;
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -353,6 +370,7 @@ public class InternalApiRestController {
         if(!validateDriverCall(sessionId)) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         try {
+           driverPointRepo.deletePointsByRoute(routeId);
            routeRepo.deleteRoute(routeId);
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -459,6 +477,53 @@ public class InternalApiRestController {
         }
     }
    // </editor-fold>
+    
+   // <editor-fold desc="Helpers" defaultstate="collapsed">
+    
+    public static List<Routes> getNearbyRoutes(PassengerPoint p1, PassengerPoint p2, List<Routes> allRoutes) {
+        double maxDistance = 1.0;
+        List<Routes> nearbyRoutes = new ArrayList<>();
+        
+        for (Routes route : allRoutes) {
+            boolean matchStartPoint = false;
+            boolean matchEndPoint = false;
+            for(DriverPoint point : route.getPoints()) {
+                double startDistance = haversine(p1.getLat(), p1.getLng(), point.getLat(), point.getLng());
+                double endDistance = haversine(p2.getLat(), p2.getLng(), point.getLat(), point.getLng());
+                
+                if (startDistance <= maxDistance) {
+                    matchStartPoint = true;
+                }
+                
+                if (endDistance <= maxDistance) {
+                    matchEndPoint = true;
+                }
+            }
+            
+            if(matchStartPoint && matchEndPoint)
+                nearbyRoutes.add(route);
+        }
+
+        return nearbyRoutes;
+    }
+    
+    public static double haversine(double lat1, double lon1, double lat2, double lon2) {
+        double R = 6371; // Radio de la Tierra en kilómetros
+
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+               Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+               Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        double distance = R * c;
+
+        return distance;
+    }
    
+    // </editor-fold>
   
 }

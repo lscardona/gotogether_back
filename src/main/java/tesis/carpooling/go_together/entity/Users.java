@@ -50,10 +50,6 @@ public class Users implements Serializable {
     
     @ColumnDefault("5")
     private float qualifying;
-    
-    @OneToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REMOVE, 
-        CascadeType.REFRESH, CascadeType.DETACH} )
-    private Routes route;
  
     @ManyToOne(fetch = FetchType.EAGER, cascade = { CascadeType.MERGE, CascadeType.REMOVE, 
         CascadeType.REFRESH, CascadeType.DETACH})

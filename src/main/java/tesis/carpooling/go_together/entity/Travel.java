@@ -12,9 +12,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.UuidGenerator;
@@ -26,6 +28,7 @@ import org.hibernate.annotations.UuidGenerator;
 @Getter
 @Setter
 @Entity
+@NoArgsConstructor
 public class Travel {
     @Id
     @GeneratedValue
@@ -37,19 +40,18 @@ public class Travel {
     
     private long startTime;
     
-    @OneToMany(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REMOVE, 
-        CascadeType.REFRESH, CascadeType.DETACH} )
-    private List<Point> points;
-    
     @OneToOne(fetch = FetchType.EAGER, cascade = {CascadeType.MERGE, CascadeType.REMOVE, 
         CascadeType.REFRESH, CascadeType.DETACH} )
     @JoinColumn(name = "passenger_id")
     private Users passenger;
     
-    public Travel(boolean enabled, Users passenger, long startTime, List<Point> points) {
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "travel_id")
+    private List<PassengerPoint> points = new ArrayList<>();
+    
+    public Travel(boolean enabled, Users passenger, long startTime) {
         this.enabled=enabled;
         this.startTime=startTime;
-        this.points=points;
         this.passenger=passenger;
     }
 }

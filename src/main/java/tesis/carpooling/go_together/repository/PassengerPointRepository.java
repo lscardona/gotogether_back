@@ -1,6 +1,6 @@
 /*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Interface.java to edit this template
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
 package tesis.carpooling.go_together.repository;
 
@@ -12,23 +12,20 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import tesis.carpooling.go_together.entity.Routes;
+import tesis.carpooling.go_together.entity.PassengerPoint;
 
 /**
  *
  * @author Usuario
  */
 @Repository
-public interface RoutesRepository extends JpaRepository<Routes, UUID> {
-    
-    @Query("SELECT r FROM Routes r WHERE r.id= :routeId")
-    Routes getRoute(@Param("routeId") UUID routeId);
+public interface PassengerPointRepository extends JpaRepository<PassengerPoint, Long> {
     
     @Modifying
     @Transactional
-    @Query("DELETE FROM Routes r WHERE r.id = :routeId")
-    void deleteRoute(@Param("routeId") UUID routeId);
+    @Query(nativeQuery = true, value = "DELETE FROM passenger_point p WHERE p.element_id = :travelId")
+    void deletePointsByRoute(@Param("travelId") UUID travelId);
     
-    @Query("SELECT r FROM Routes r WHERE ABS(r.startTime - :myTime) <= 600")
-    List<Routes> findRoutesByTime(@Param("myTime") long myTime);
+    @Query("SELECT p FROM PassengerPoint p WHERE p.elementId = :travelId")
+    List<PassengerPoint> getPointsByRoute(@Param("travelId") UUID travelId);
 }
