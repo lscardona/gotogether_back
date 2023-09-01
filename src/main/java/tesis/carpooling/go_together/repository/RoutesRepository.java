@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tesis.carpooling.go_together.entity.Routes;
+import tesis.carpooling.go_together.entity.Users;
 
 /**
  *
@@ -31,4 +32,7 @@ public interface RoutesRepository extends JpaRepository<Routes, UUID> {
     
     @Query("SELECT r FROM Routes r WHERE ABS(r.startTime - :myTime) <= 600")
     List<Routes> findRoutesByTime(@Param("myTime") long myTime);
+    
+    @Query("SELECT r FROM Routes r WHERE :passenger MEMBER OF r.passengers")
+    Routes findByPassengersContaining(@Param("passenger") Users passenger);
 }

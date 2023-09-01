@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -300,19 +301,42 @@ public class InternalApiRestController {
         }
     }
     
+    @PutMapping("/passenger/select-route/{sessionId}/{routeId}")
+    public Routes selectRoute(@PathVariable("sessionId") UUID sessionId, 
+            @PathVariable("routeId") UUID routeId) {
+        if(!validatePassengerCall(sessionId))
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Session session = sessionRepo.findById(sessionId).get();
+        if(session == null) 
+             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Users user = userRepo.findById(session.getUserId()).get();
+        if(user == null)
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Routes route = routeRepo.getRoute(routeId);
+        route.getPassengers().add(user);
+        routeRepo.save(route);
+        return route;
+    }
+    
     @DeleteMapping("travel/{sessionId}/{routeId}")
     public void deleteTravel(@PathVariable("sessionId") UUID sessionId, @PathVariable("routeId") UUID routeId) {
         if(!validatePassengerCall(sessionId)) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         try {
+            Session session = sessionRepo.getSession(sessionId);
+            Users user = userRepo.findUserById(session.getUserId());
             passengerPointRepo.deletePointsByRoute(routeId);
+            Routes passengerRoute = routeRepo.findByPassengersContaining(user);
+            if(passengerRoute != null) 
+                passengerRoute.getPassengers().remove(user);
+            
             travelRepo.deleteTravel(routeId);
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                      String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
         }
     }
-   // </editor-fold>
+// </editor-fold>
    
    // <editor-fold desc="Users Driver" defaultstate="collapsed">
 
@@ -408,14 +432,15 @@ public class InternalApiRestController {
         }
     }
     
-    @PutMapping("/driver/qualifying")
-    public void driverQualifying(@PathVariable("sessionId") UUID sessionId, @PathVariable("qualifying") long number) {
+    @PutMapping("/score/{sessionId}/{userId}/{score}")
+    public ResponseEntity<String> driverQualifying(@PathVariable("sessionId") UUID sessionId, 
+            @PathVariable("score") long number, @PathVariable("userId") UUID userId) {
         if(!validatePassengerCall(sessionId))
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         Session session = sessionRepo.findById(sessionId).get();
         if(session == null) 
              throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
-        Users user = userRepo.findById(session.getUserId()).get();
+        Users user = userRepo.findById(userId).get();
         if(user == null)
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         try {
@@ -430,12 +455,12 @@ public class InternalApiRestController {
             float finalQualifying = count/numberScores;
             user.setQualifying(finalQualifying);
             userRepo.save(user);
+            return ResponseEntity.ok("Calificación enviada");
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                      String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
         }
     }
-    
    // </editor-fold>
    
    // <editor-fold desc="validate sessions" defaultstate="collapsed">
