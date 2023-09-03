@@ -264,7 +264,7 @@ public class InternalApiRestController {
         try{
             Session session = sessionRepo.getSession(sessionId);
             Users passenger = userRepo.findUserById(session.getUserId());
-            Travel newRoute = new Travel(true, passenger, startTime);
+            Travel newRoute = new Travel(passenger, startTime);
             UUID travelSaved = travelRepo.save(newRoute).getId();
             point.forEach(p -> {
                 PassengerPoint newPoint = new PassengerPoint(p.getLat(), p.getLng());
@@ -313,9 +313,14 @@ public class InternalApiRestController {
         if(user == null)
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         Routes route = routeRepo.getRoute(routeId);
-        route.getPassengers().add(user);
-        routeRepo.save(route);
-        return route;
+        if(route.getPassengers().size() < 4) {
+            route.getPassengers().add(user);
+            routeRepo.save(route);
+            return route;
+        } else {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The route is full");
+        }
+        
     }
     
     @DeleteMapping("travel/{sessionId}/{routeId}")
@@ -371,13 +376,17 @@ public class InternalApiRestController {
         }
     }
     
-    @GetMapping("/get-route/{sessionId}/{routeId}")
-    public Routes getRoute(@PathVariable("sessionId") UUID sessionId, 
-            @PathVariable("routeId") UUID routeId) {
+    @GetMapping("/get-route/{sessionId}")
+    public Routes getRoute(@PathVariable("sessionId") UUID sessionId) {
         if(!validateDriverCall(sessionId)) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         try {
-            return routeRepo.getRoute(routeId);
+            Session session = sessionRepo.findById(sessionId).get();
+            Users user = userRepo.findById(session.getUserId()).get();
+            Routes route = routeRepo.findRouteByUser(user.getId());
+            if(route == null)
+                return null;
+            return route;
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                      String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
@@ -394,6 +403,16 @@ public class InternalApiRestController {
         if(!validateDriverCall(sessionId)) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         try {
+            Routes myRoute = routeRepo.findById(routeId).get();
+            if(!myRoute.getPassengers().isEmpty()) {
+                myRoute.getPassengers().forEach(user -> {
+                    Travel travel = travelRepo.getTravelByUser(user);
+                    if(travel != null) {
+                        travel.setState(false);
+                        travelRepo.save(travel);
+                    }
+                });
+            }
            driverPointRepo.deletePointsByRoute(routeId);
            routeRepo.deleteRoute(routeId);
         } catch(Exception ex) {
@@ -460,6 +479,74 @@ public class InternalApiRestController {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                      String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
         }
+    }
+    
+    @GetMapping("/route/passengers/{sessionId}/{routeId}")
+    public List<Users> getPassengersInRoute(@PathVariable("sessionId") UUID sessionId, 
+            @PathVariable("routeId") UUID routeId) {
+         if(!validateDriverCall(sessionId))
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Session session = sessionRepo.findById(sessionId).get();
+        if(session == null) 
+             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        
+        Routes myRoute = routeRepo.findById(routeId).get();
+        
+        if(myRoute == null) 
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tu no tienes rutas creadas");
+        try {
+            List<Users> passengers = myRoute.getPassengers();
+            if(passengers.isEmpty()) 
+                return new ArrayList<>();
+            
+            return passengers;
+        } catch(Exception ex) {
+             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        }
+    }
+    
+    @PutMapping("/delete-passenger/{sessionId}/{routeId}")
+    public Routes deletePassengerFromRoute(@PathVariable("sessionId") UUID sessionId, 
+            @PathVariable("routeId") UUID routeId, @RequestBody Users passenger) {
+        if(!validateDriverCall(sessionId))
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Session session = sessionRepo.findById(sessionId).get();
+        if(session == null) 
+             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Users user = userRepo.findById(session.getUserId()).get();
+        if(user == null)
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Routes route = routeRepo.getRoute(routeId);
+        Travel passengerTravel = travelRepo.getTravelByUser(passenger);
+        if(passengerTravel != null) {
+            passengerTravel.setState(false);
+            travelRepo.save(passengerTravel);
+        }
+        route.getPassengers().remove(passenger);
+        routeRepo.save(route);
+        return route;
+    }
+    
+    @PutMapping("/add-passenger-route/{sessionId}/{routeId}")
+    public Routes addPassengerToRoute(@PathVariable("sessionId") UUID sessionId, 
+            @PathVariable("routeId") UUID routeId, @RequestBody Users passenger) {
+        if(!validateDriverCall(sessionId))
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Session session = sessionRepo.findById(sessionId).get();
+        if(session == null) 
+             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Users user = userRepo.findById(session.getUserId()).get();
+        if(user == null)
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Routes route = routeRepo.getRoute(routeId);
+        Travel passengerTravel = travelRepo.getTravelByUser(passenger);
+        if(passengerTravel != null) {
+            passengerTravel.setState(true);
+            travelRepo.save(passengerTravel);
+        }
+        routeRepo.save(route);
+        return route;
     }
    // </editor-fold>
    

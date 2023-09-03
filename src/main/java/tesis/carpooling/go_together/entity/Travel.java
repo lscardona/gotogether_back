@@ -35,8 +35,8 @@ public class Travel {
     @UuidGenerator
     private UUID id;
     
-    @ColumnDefault("true")
-    private boolean enabled;
+    @ColumnDefault("false")
+    private boolean state;
     
     private long startTime;
     
@@ -49,8 +49,7 @@ public class Travel {
     @JoinColumn(name = "travel_id")
     private List<PassengerPoint> points = new ArrayList<>();
     
-    public Travel(boolean enabled, Users passenger, long startTime) {
-        this.enabled=enabled;
+    public Travel(Users passenger, long startTime) {
         this.startTime=startTime;
         this.passenger=passenger;
     }

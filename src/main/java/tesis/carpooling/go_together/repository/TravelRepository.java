@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tesis.carpooling.go_together.entity.Travel;
+import tesis.carpooling.go_together.entity.Users;
 
 /**
  *
@@ -24,4 +25,7 @@ public interface TravelRepository extends JpaRepository<Travel, UUID> {
     @Transactional
     @Query("DELETE FROM Travel r WHERE r.id = :travelId")
     void deleteTravel(@Param("travelId") UUID travelId);
+    
+    @Query("SELECT t FROM Travel t WHERE t.passenger = :pass")
+    Travel getTravelByUser(@Param("pass") Users pass);
 }

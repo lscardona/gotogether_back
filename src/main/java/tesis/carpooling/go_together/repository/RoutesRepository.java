@@ -35,4 +35,7 @@ public interface RoutesRepository extends JpaRepository<Routes, UUID> {
     
     @Query("SELECT r FROM Routes r WHERE :passenger MEMBER OF r.passengers")
     Routes findByPassengersContaining(@Param("passenger") Users passenger);
+    
+    @Query("SELECT r FROM Routes r WHERE r.driver.id = :userId")
+    Routes findRouteByUser(@Param("userId") UUID userId); 
 }
