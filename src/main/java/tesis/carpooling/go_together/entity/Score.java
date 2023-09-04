@@ -8,6 +8,7 @@ import jakarta.persistence.SequenceGenerator;
 import java.io.Serializable;
 import java.util.UUID;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
@@ -17,6 +18,7 @@ import lombok.Setter;
 @Entity
 @Getter
 @Setter
+@NoArgsConstructor
 public class Score implements Serializable {
     
     @Id

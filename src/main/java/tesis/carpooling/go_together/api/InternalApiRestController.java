@@ -452,9 +452,39 @@ public class InternalApiRestController {
     }
     
     @PutMapping("/score/{sessionId}/{userId}/{score}")
+    public ResponseEntity<String> passengerQualifying(@PathVariable("sessionId") UUID sessionId, 
+            @PathVariable("score") long number, @PathVariable("userId") UUID userId) {
+        if(!validatePassengerCall(sessionId) || !validateDriverCall(sessionId))
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Session session = sessionRepo.findById(sessionId).get();
+        if(session == null) 
+             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Users user = userRepo.findById(userId).get();
+        if(user == null)
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        try {
+            Score newScore = new Score(user.getId(), number);
+            scoreRepo.save(newScore);
+            long numberScores = scoreRepo.countScoresByUser(user.getId());
+            List<Score> scores = scoreRepo.getScoreByUser(user.getId());
+            float count = 0;
+            for(Score s : scores) {
+                count += s.getScore();
+            }
+            float finalQualifying = count/numberScores;
+            user.setQualifying(finalQualifying);
+            userRepo.save(user);
+            return ResponseEntity.ok("Calificación enviada");
+        } catch(Exception ex) {
+             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        }
+    }
+    
+    @PutMapping("/driver-score/{sessionId}/{userId}/{score}")
     public ResponseEntity<String> driverQualifying(@PathVariable("sessionId") UUID sessionId, 
             @PathVariable("score") long number, @PathVariable("userId") UUID userId) {
-        if(!validatePassengerCall(sessionId))
+        if(!validateDriverCall(sessionId))
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
         Session session = sessionRepo.findById(sessionId).get();
         if(session == null) 
