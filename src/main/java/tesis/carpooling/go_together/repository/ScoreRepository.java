@@ -12,10 +12,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tesis.carpooling.go_together.entity.Score;
 
-/**
- *
- * @author Usuario
- */
 @Repository
 public interface ScoreRepository extends JpaRepository<Score, UUID> {
     

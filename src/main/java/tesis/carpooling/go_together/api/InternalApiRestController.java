@@ -3,6 +3,7 @@ package tesis.carpooling.go_together.api;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -265,6 +266,7 @@ public class InternalApiRestController {
             Session session = sessionRepo.getSession(sessionId);
             Users passenger = userRepo.findUserById(session.getUserId());
             Travel newRoute = new Travel(passenger, startTime);
+            newRoute.setState(1);
             UUID travelSaved = travelRepo.save(newRoute).getId();
             point.forEach(p -> {
                 PassengerPoint newPoint = new PassengerPoint(p.getLat(), p.getLng());
@@ -341,6 +343,104 @@ public class InternalApiRestController {
                      String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
         }
     }
+    
+    /**
+     * Adds driver rating by passengers
+     * @param sessionId session by user
+     * @param number driver score
+     * @param userId Driver User ID
+     * @return
+     */
+    @PutMapping("/score/{sessionId}/{userId}/{score}")
+    public ResponseEntity<String> passengerQualifying(@PathVariable("sessionId") UUID sessionId, 
+            @PathVariable("score") long number, @PathVariable("userId") UUID userId) {
+        if(!validatePassengerCall(sessionId))
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Session session = sessionRepo.findById(sessionId).get();
+        if(session == null) 
+             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Users user = userRepo.findById(userId).get();
+        if(user == null)
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        try {
+            Score newScore = new Score(user.getId(), number);
+            scoreRepo.save(newScore);
+            long numberScores = scoreRepo.countScoresByUser(user.getId());
+            List<Score> scores = scoreRepo.getScoreByUser(user.getId());
+            float count = 0;
+            for(Score s : scores) {
+                count += s.getScore();
+            }
+            float finalQualifying = count/numberScores;
+            user.setQualifying(finalQualifying);
+            userRepo.save(user);
+            return ResponseEntity.ok("Calificación enviada");
+        } catch(Exception ex) {
+             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
+        }
+    }
+    
+    /**
+     * Get a travel for a passenger
+     * @param sessionId
+     * @return
+     */
+    @GetMapping("travel/{sessionId}")
+    public Travel getTravel(@PathVariable("sessionId") UUID sessionId) {
+        if(!validatePassengerCall(sessionId)) 
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Session session = sessionRepo.findById(sessionId).get();
+        if(session == null) 
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        Users user = userRepo.findById(session.getUserId()).get();
+        Travel myTravel = travelRepo.getTravelByUser(user);
+        if(myTravel == null)
+            return new Travel();
+        List<PassengerPoint> mypoint = passengerPointRepo.getPointsByRoute(myTravel.getId());
+        myTravel.setPoints(mypoint);
+        return myTravel;
+    }
+    
+    /**
+     * Gets the meaning of the passenger's trip status
+     * @param sessionId session by user
+     * @param travelId
+     * @return
+     */
+    @GetMapping("/travel/state/{sessionId}/{travelId}")
+    public String getTravelState(@PathVariable("sessionId") UUID sessionId, 
+            @PathVariable("travelId") UUID travelId) {
+        if(!validatePassengerCall(sessionId)) 
+            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
+        
+        Optional<Travel> optionalMyTravel = travelRepo.findById(travelId);
+        
+        if(!optionalMyTravel.isPresent()) 
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No tienes una ruta creada");
+        int state = optionalMyTravel.get().getState();
+        
+        switch (state) {
+            case 1 -> {
+                return "Esperando confirmación del conductor";
+           }
+            case 2 -> {
+                return "Viaje aceptado";
+           }
+            case 3 -> {
+                return "El conductor ha cancelado el viaje";
+           }
+            case 4 -> {
+                return "Tu solicitud ha sido rechazada";
+           }
+            default -> throw new AssertionError();
+        }
+    }
+    
+    @GetMapping("/score/count/{userId}")
+    public long countScoresByUser(@PathVariable("userId") UUID userId) {
+        return scoreRepo.countScoresByUser(userId);
+    }
 // </editor-fold>
    
    // <editor-fold desc="Users Driver" defaultstate="collapsed">
@@ -384,8 +484,13 @@ public class InternalApiRestController {
             Session session = sessionRepo.findById(sessionId).get();
             Users user = userRepo.findById(session.getUserId()).get();
             Routes route = routeRepo.findRouteByUser(user.getId());
-            if(route == null)
-                return null;
+            if(route == null) {
+                Routes newRoute = new Routes();
+                newRoute.setDriver(user);
+                return newRoute;
+            }
+            List<DriverPoint> myPoints = driverPointRepo.getPointsByRoute(route.getId());
+            route.setPoints(myPoints);
             return route;
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -408,7 +513,7 @@ public class InternalApiRestController {
                 myRoute.getPassengers().forEach(user -> {
                     Travel travel = travelRepo.getTravelByUser(user);
                     if(travel != null) {
-                        travel.setState(false);
+                        travel.setState(3);
                         travelRepo.save(travel);
                     }
                 });
@@ -445,36 +550,6 @@ public class InternalApiRestController {
             userInfo.setCarModel(user.getCarModel());
             userInfo.setQualifying(user.getQualifying());
             return userInfo;
-        } catch(Exception ex) {
-             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                     String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
-        }
-    }
-    
-    @PutMapping("/score/{sessionId}/{userId}/{score}")
-    public ResponseEntity<String> passengerQualifying(@PathVariable("sessionId") UUID sessionId, 
-            @PathVariable("score") long number, @PathVariable("userId") UUID userId) {
-        if(!validatePassengerCall(sessionId) || !validateDriverCall(sessionId))
-            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
-        Session session = sessionRepo.findById(sessionId).get();
-        if(session == null) 
-             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
-        Users user = userRepo.findById(userId).get();
-        if(user == null)
-            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
-        try {
-            Score newScore = new Score(user.getId(), number);
-            scoreRepo.save(newScore);
-            long numberScores = scoreRepo.countScoresByUser(user.getId());
-            List<Score> scores = scoreRepo.getScoreByUser(user.getId());
-            float count = 0;
-            for(Score s : scores) {
-                count += s.getScore();
-            }
-            float finalQualifying = count/numberScores;
-            user.setQualifying(finalQualifying);
-            userRepo.save(user);
-            return ResponseEntity.ok("Calificación enviada");
         } catch(Exception ex) {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                      String.format("Something went wrong, contact your administrator %s", ex.getMessage()));
@@ -550,7 +625,7 @@ public class InternalApiRestController {
         Routes route = routeRepo.getRoute(routeId);
         Travel passengerTravel = travelRepo.getTravelByUser(passenger);
         if(passengerTravel != null) {
-            passengerTravel.setState(false);
+            passengerTravel.setState(4);
             travelRepo.save(passengerTravel);
         }
         route.getPassengers().remove(passenger);
@@ -572,7 +647,7 @@ public class InternalApiRestController {
         Routes route = routeRepo.getRoute(routeId);
         Travel passengerTravel = travelRepo.getTravelByUser(passenger);
         if(passengerTravel != null) {
-            passengerTravel.setState(true);
+            passengerTravel.setState(2);
             travelRepo.save(passengerTravel);
         }
         routeRepo.save(route);

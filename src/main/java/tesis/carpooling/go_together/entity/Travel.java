@@ -35,8 +35,7 @@ public class Travel {
     @UuidGenerator
     private UUID id;
     
-    @ColumnDefault("false")
-    private boolean state;
+    private int state;
     
     private long startTime;
     
