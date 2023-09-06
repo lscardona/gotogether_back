@@ -386,7 +386,7 @@ public class InternalApiRestController {
      * @param sessionId
      * @return
      */
-    @GetMapping("travel/{sessionId}")
+    @GetMapping("/travel/{sessionId}")
     public Travel getTravel(@PathVariable("sessionId") UUID sessionId) {
         if(!validatePassengerCall(sessionId)) 
             throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Access denied");
